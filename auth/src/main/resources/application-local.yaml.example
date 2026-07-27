@@ -1,0 +1,14 @@
+# Copy to application-local.yaml (gitignored) and fill in real values.
+# Or export the same keys as environment variables.
+
+spring:
+  datasource:
+    password: your-db-password
+
+jwt:
+  secret: your-jwt-secret-at-least-256-bits-hex
+
+google:
+  auth:
+    client-id: your-google-client-id.apps.googleusercontent.com
+    client-secret: your-google-client-secret
