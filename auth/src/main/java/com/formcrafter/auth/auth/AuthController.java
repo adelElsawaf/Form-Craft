@@ -14,6 +14,7 @@ import com.formcrafter.auth.auth.services.AuthService;
 import com.formcrafter.auth.jwt.JwtService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/auth")
 @AllArgsConstructor
+@Slf4j
 public class AuthController {
     private final AuthService authService;
     private final JwtService jwtService;
@@ -33,6 +35,7 @@ public class AuthController {
     @RegisterDocumentation
     @PostMapping("/register")
     public ResponseEntity<AuthUserDTO> register(@RequestBody @Valid RegisterRequest request) {
+        log.info("Register request for email={}", request.getEmail());
         LoginResponse loginResponse = authService.register(request);
         return buildAuthResponse(loginResponse);
     }
