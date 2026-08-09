@@ -9,17 +9,13 @@ import com.formcrafter.auth.auth.dtos.requests.RegisterRequest;
 import com.formcrafter.auth.auth.dtos.responses.AuthTokensDto;
 import com.formcrafter.auth.auth.dtos.responses.AuthUserDTO;
 import com.formcrafter.auth.auth.dtos.responses.LoginResponse;
-import com.formcrafter.auth.auth.exceptions.GoogleAccountAlreadyLinkedException;
 import com.formcrafter.auth.auth.exceptions.InvalidCredentialsException;
-import com.formcrafter.auth.auth.exceptions.UserAlreadyExistsException;
 import com.formcrafter.auth.auth.mappers.AuthMapper;
 import com.formcrafter.auth.exception.AppException;
 import com.formcrafter.auth.jwt.JwtService;
 import com.formcrafter.auth.user.UserService;
 import com.formcrafter.auth.user.dtos.requests.CreateUserRequest;
 import com.formcrafter.auth.user.dtos.responses.UserDTO;
-import com.formcrafter.auth.user_identity.UserIdentityService;
-import com.formcrafter.auth.user_identity.enums.AuthProvider;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -28,6 +24,8 @@ import org.springframework.security.authentication.InternalAuthenticationService
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -38,7 +36,7 @@ import java.security.GeneralSecurityException;
 @RequiredArgsConstructor
 public class AuthService {
     private final UserService userService;
-    private final UserIdentityService userIdentityService;
+    private final UserDetailsService userDetailsService;
     private final AuthenticationManager authenticationManager;
     private final AuthMapper authMapper;
     private final JwtService jwtService;
@@ -47,19 +45,11 @@ public class AuthService {
 
     @Transactional
     public LoginResponse register(RegisterRequest request) {
-        if (userService.existsByEmail(request.getEmail())) {
-            throw new UserAlreadyExistsException();
-        }
-
-        if (StringUtils.hasText(request.getGoogleId())
-                && userIdentityService.existsByProviderAndProviderUserId(AuthProvider.GOOGLE, request.getGoogleId())) {
-            throw new GoogleAccountAlreadyLinkedException();
-        }
-
         CreateUserRequest createUserRequest = authMapper.toCreateUserRequest(request);
         UserDTO createdUser = userService.createUser(createUserRequest);
 
         if (!StringUtils.hasText(request.getPassword())) {
+            setSecurityContext(createdUser.getEmail());
             return buildLoginResponse(authMapper.toAuthUserDTO(createdUser));
         }
 
@@ -88,14 +78,6 @@ public class AuthService {
     }
 
     private LoginResponse registerGoogleUser(GoogleUserDTO googleUser) {
-        if (userService.existsByEmail(googleUser.email())) {
-            throw new UserAlreadyExistsException();
-        }
-
-        if (userIdentityService.existsByProviderAndProviderUserId(AuthProvider.GOOGLE, googleUser.googleId())) {
-            throw new GoogleAccountAlreadyLinkedException();
-        }
-
         UserDTO createdUser = userService.createUser(authMapper.toCreateUserRequest(googleUser));
         return buildLoginResponse(authMapper.toAuthUserDTO(createdUser));
     }
@@ -133,5 +115,12 @@ public class AuthService {
                 .user(user)
                 .tokens(tokens)
                 .build();
+    }
+
+    private void setSecurityContext(String email) {
+        UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities())
+        );
     }
 }

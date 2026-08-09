@@ -1,4 +1,4 @@
-package com.formcrafter.auth.auth.exceptions;
+package com.formcrafter.auth.user_identity.exceptions;
 
 import com.formcrafter.auth.exception.AppException;
 import org.springframework.http.HttpStatus;

@@ -3,85 +3,150 @@ package com.formcrafter.auth.user_identity;
 import com.formcrafter.auth.user.UserEntity;
 import com.formcrafter.auth.user.dtos.requests.CreateIdentityRequest;
 import com.formcrafter.auth.user_identity.enums.AuthProvider;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Learning benchmark for UserIdentityService unit tests.
- *
- * Pattern:
- * 1. Name: method_whenCondition_expectedResult
- * 2. Arrange → Act → Assert
- * 3. Mock the DB boundary (repository); keep real BCrypt
- * 4. Assert the full result the method owns
- *
- * buildIdentity has real logic → worth thorough unit tests.
- * exists/find are thin repo pass-throughs → one stubbing example each (SQL belongs in @DataJpaTest later).
- */
 @ExtendWith(MockitoExtension.class)
 class UserIdentityServiceTest {
 
-    private static final String EMAIL = "ada@example.com";
-    private static final String PLAIN_PASSWORD = "plain-password";
+    private static final String EMAIL = "adel_elsawaf@example.com";
+    private static final String FIRST_NAME = "Adel";
+    private static final String LAST_NAME = "Elsawaf";
+    private static final String PLAIN_SECRET = "plain-secret";
     private static final String GOOGLE_ID = "google-user-123";
 
     @Mock
     private UserIdentityRepository userIdentityRepository;
 
-    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    @Spy
+    private PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
+    @InjectMocks
     private UserIdentityService userIdentityService;
 
-    @BeforeEach
-    void setUp() {
-        userIdentityService = new UserIdentityService(userIdentityRepository, passwordEncoder);
+    @Nested
+    class FindByProviderAndProviderUserId {
+
+        @Test
+        void whenPresent_returnsIdentity() {
+            UserIdentityEntity stored = sampleGoogleIdentity(sampleUser());
+
+            when(userIdentityRepository.findByProviderAndProviderUserIdIgnoreCase(AuthProvider.GOOGLE, GOOGLE_ID))
+                    .thenReturn(Optional.of(stored));
+
+            Optional<UserIdentityEntity> actual = userIdentityService
+                    .findByProviderAndProviderUserId(AuthProvider.GOOGLE, GOOGLE_ID);
+
+            assertThat(actual).containsSame(stored);
+            verify(userIdentityRepository)
+                    .findByProviderAndProviderUserIdIgnoreCase(AuthProvider.GOOGLE, GOOGLE_ID);
+        }
+
+        @Test
+        void whenNotPresent_returnsEmpty() {
+            when(userIdentityRepository.findByProviderAndProviderUserIdIgnoreCase(AuthProvider.GOOGLE, GOOGLE_ID))
+                    .thenReturn(Optional.empty());
+
+            Optional<UserIdentityEntity> actual = userIdentityService
+                    .findByProviderAndProviderUserId(AuthProvider.GOOGLE, GOOGLE_ID);
+
+            assertThat(actual).isEmpty();
+            verify(userIdentityRepository)
+                    .findByProviderAndProviderUserIdIgnoreCase(AuthProvider.GOOGLE, GOOGLE_ID);
+        }
+    }
+
+    @Nested
+    class ExistsByProviderAndProviderUserId {
+
+        @Test
+        void whenPresent_returnsTrue() {
+            when(userIdentityRepository.existsByProviderAndProviderUserIdIgnoreCase(AuthProvider.GOOGLE, GOOGLE_ID))
+                    .thenReturn(true);
+
+            boolean actual = userIdentityService
+                    .existsByProviderAndProviderUserId(AuthProvider.GOOGLE, GOOGLE_ID);
+
+            assertThat(actual).isTrue();
+            verify(userIdentityRepository)
+                    .existsByProviderAndProviderUserIdIgnoreCase(AuthProvider.GOOGLE, GOOGLE_ID);
+        }
+
+        @Test
+        void whenNotPresent_returnsFalse() {
+            when(userIdentityRepository.existsByProviderAndProviderUserIdIgnoreCase(AuthProvider.GOOGLE, GOOGLE_ID))
+                    .thenReturn(false);
+
+            boolean actual = userIdentityService
+                    .existsByProviderAndProviderUserId(AuthProvider.GOOGLE, GOOGLE_ID);
+
+            assertThat(actual).isFalse();
+            verify(userIdentityRepository)
+                    .existsByProviderAndProviderUserIdIgnoreCase(AuthProvider.GOOGLE, GOOGLE_ID);
+        }
     }
 
     @Nested
     class BuildIdentity {
 
         @Test
-        void buildIdentity_forEmailPassword_copiesFieldsAndHashesPlaintextSecret() {
+        void whenEmailAndPasswordAndSecretPresent_returnsIdentityWithHashedSecret() {
             UserEntity user = sampleUser();
             CreateIdentityRequest request = CreateIdentityRequest.builder()
                     .provider(AuthProvider.EMAIL_AND_PASSWORD)
                     .providerUserId(EMAIL)
-                    .secret(PLAIN_PASSWORD)
+                    .secret(PLAIN_SECRET)
                     .build();
 
-            UserIdentityEntity identity = userIdentityService.buildIdentity(user, request);
+            UserIdentityEntity actual = userIdentityService.buildIdentity(user, request);
 
-            assertAll(
-                    () -> assertSame(user, identity.getUser()),
-                    () -> assertEquals(AuthProvider.EMAIL_AND_PASSWORD, identity.getProvider()),
-                    () -> assertEquals(EMAIL, identity.getProviderUserId()),
-                    () -> assertNotNull(identity.getCredentialSecret()),
-                    () -> assertNotEquals(PLAIN_PASSWORD, identity.getCredentialSecret()),
-                    () -> assertTrue(passwordEncoder.matches(PLAIN_PASSWORD, identity.getCredentialSecret()))
-            );
+            assertThat(actual.getUser()).isSameAs(user);
+            assertThat(actual.getProvider()).isEqualTo(AuthProvider.EMAIL_AND_PASSWORD);
+            assertThat(actual.getProviderUserId()).isEqualTo(EMAIL);
+            assertThat(actual.getCredentialSecret())
+                    .isNotNull()
+                    .isNotEqualTo(PLAIN_SECRET);
+            assertThat(passwordEncoder.matches(PLAIN_SECRET, actual.getCredentialSecret())).isTrue();
         }
 
         @Test
-        void buildIdentity_forGoogle_copiesFieldsAndLeavesCredentialSecretNull() {
+        void whenEmailAndPasswordAndSecretMissing_returnsIdentityWithNullSecret() {
+            UserEntity user = sampleUser();
+            CreateIdentityRequest request = CreateIdentityRequest.builder()
+                    .provider(AuthProvider.EMAIL_AND_PASSWORD)
+                    .providerUserId(EMAIL)
+                    .secret(null)
+                    .build();
+
+            UserIdentityEntity expected = UserIdentityEntity.builder()
+                    .user(user)
+                    .provider(AuthProvider.EMAIL_AND_PASSWORD)
+                    .providerUserId(EMAIL)
+                    .credentialSecret(null)
+                    .build();
+
+            UserIdentityEntity actual = userIdentityService.buildIdentity(user, request);
+
+            assertThat(actual)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
+        }
+
+        @Test
+        void whenGoogleProvider_returnsIdentityWithNullSecret() {
             UserEntity user = sampleUser();
             CreateIdentityRequest request = CreateIdentityRequest.builder()
                     .provider(AuthProvider.GOOGLE)
@@ -89,111 +154,48 @@ class UserIdentityServiceTest {
                     .secret(null)
                     .build();
 
-            UserIdentityEntity identity = userIdentityService.buildIdentity(user, request);
+            UserIdentityEntity expected = sampleGoogleIdentity(user);
 
-            assertAll(
-                    () -> assertSame(user, identity.getUser()),
-                    () -> assertEquals(AuthProvider.GOOGLE, identity.getProvider()),
-                    () -> assertEquals(GOOGLE_ID, identity.getProviderUserId()),
-                    () -> assertNull(identity.getCredentialSecret())
-            );
+            UserIdentityEntity actual = userIdentityService.buildIdentity(user, request);
+
+            assertThat(actual)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
         }
 
         @Test
-        void buildIdentity_forEmailPasswordWithBlankSecret_leavesCredentialSecretNull() {
+        void whenGoogleProviderAndSecretPresent_returnsIdentityWithNullSecret() {
             UserEntity user = sampleUser();
             CreateIdentityRequest request = CreateIdentityRequest.builder()
-                    .provider(AuthProvider.EMAIL_AND_PASSWORD)
-                    .providerUserId(EMAIL)
-                    .secret("   ")
-                    .build();
-
-            UserIdentityEntity identity = userIdentityService.buildIdentity(user, request);
-
-            assertAll(
-                    () -> assertSame(user, identity.getUser()),
-                    () -> assertEquals(AuthProvider.EMAIL_AND_PASSWORD, identity.getProvider()),
-                    () -> assertEquals(EMAIL, identity.getProviderUserId()),
-                    () -> assertNull(identity.getCredentialSecret())
-            );
-        }
-    }
-
-    /**
-     * Thin service methods: unit tests only prove delegation.
-     * Case-insensitive SQL behavior is tested later with @DataJpaTest on the repository.
-     */
-    @Nested
-    class RepositoryDelegation {
-
-        @Test
-        void existsByProviderAndProviderUserId_whenRepositoryReturnsTrue_returnsTrue() {
-            when(userIdentityRepository.existsByProviderAndProviderUserIdIgnoreCase(
-                    AuthProvider.GOOGLE, GOOGLE_ID
-            )).thenReturn(true);
-
-            boolean exists = userIdentityService.existsByProviderAndProviderUserId(
-                    AuthProvider.GOOGLE, GOOGLE_ID
-            );
-
-            assertTrue(exists);
-            verify(userIdentityRepository).existsByProviderAndProviderUserIdIgnoreCase(
-                    AuthProvider.GOOGLE, GOOGLE_ID
-            );
-        }
-
-        @Test
-        void existsByProviderAndProviderUserId_whenRepositoryReturnsFalse_returnsFalse() {
-            when(userIdentityRepository.existsByProviderAndProviderUserIdIgnoreCase(
-                    AuthProvider.EMAIL_AND_PASSWORD, EMAIL
-            )).thenReturn(false);
-
-            boolean exists = userIdentityService.existsByProviderAndProviderUserId(
-                    AuthProvider.EMAIL_AND_PASSWORD, EMAIL
-            );
-
-            assertFalse(exists);
-        }
-
-        @Test
-        void findByProviderAndProviderUserId_whenPresent_returnsIdentity() {
-            UserIdentityEntity stored = UserIdentityEntity.builder()
-                    .user(sampleUser())
                     .provider(AuthProvider.GOOGLE)
                     .providerUserId(GOOGLE_ID)
+                    .secret(PLAIN_SECRET)
                     .build();
 
-            when(userIdentityRepository.findByProviderAndProviderUserIdIgnoreCase(
-                    AuthProvider.GOOGLE, GOOGLE_ID
-            )).thenReturn(Optional.of(stored));
+            UserIdentityEntity expected = sampleGoogleIdentity(user);
 
-            Optional<UserIdentityEntity> result = userIdentityService.findByProviderAndProviderUserId(
-                    AuthProvider.GOOGLE, GOOGLE_ID
-            );
+            UserIdentityEntity actual = userIdentityService.buildIdentity(user, request);
 
-            assertTrue(result.isPresent());
-            assertSame(stored, result.get());
-        }
-
-        @Test
-        void findByProviderAndProviderUserId_whenAbsent_returnsEmpty() {
-            when(userIdentityRepository.findByProviderAndProviderUserIdIgnoreCase(
-                    AuthProvider.GOOGLE, GOOGLE_ID
-            )).thenReturn(Optional.empty());
-
-            Optional<UserIdentityEntity> result = userIdentityService.findByProviderAndProviderUserId(
-                    AuthProvider.GOOGLE, GOOGLE_ID
-            );
-
-            assertTrue(result.isEmpty());
+            assertThat(actual)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
         }
     }
 
     private static UserEntity sampleUser() {
         return UserEntity.builder()
                 .email(EMAIL)
-                .firstName("Ada")
-                .lastName("Lovelace")
+                .firstName(FIRST_NAME)
+                .lastName(LAST_NAME)
+                .build();
+    }
+
+    private static UserIdentityEntity sampleGoogleIdentity(UserEntity user) {
+        return UserIdentityEntity.builder()
+                .user(user)
+                .provider(AuthProvider.GOOGLE)
+                .providerUserId(GOOGLE_ID)
+                .credentialSecret(null)
                 .build();
     }
 }
