@@ -58,7 +58,6 @@ export function RegisterForm() {
       lastName: values.lastName,
       email: values.email,
       password: values.password,
-      googleId: values.googleId,
     }
 
     try {

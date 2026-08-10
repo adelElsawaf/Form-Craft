@@ -7,10 +7,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+
 @Data
 @Schema(
         name = "RegisterRequest",
-        description = "Payload to create a new user account. Provide a password, a googleId, or both."
+        description = "Payload to create a new user account with email and password."
 )
 public class RegisterRequest {
     @NotBlank(message = "First name is required")
@@ -26,10 +27,8 @@ public class RegisterRequest {
     @Schema(description = "Unique email address used as the account identifier", example = "ada@example.com", requiredMode = Schema.RequiredMode.REQUIRED)
     private String email;
 
+    @NotBlank(message = "Password is required")
     @Size(min = 8, message = "Password must be at least 8 characters")
-    @Schema(description = "Account password (min 8 characters). Required when googleId is not provided.", example = "securePass1", minLength = 8)
+    @Schema(description = "Account password (min 8 characters)", example = "securePass1", minLength = 8, requiredMode = Schema.RequiredMode.REQUIRED)
     private String password;
-
-    @Schema(description = "Google subject identifier when registering via Google. Required when password is not provided.", example = "108912345678901234567")
-    private String googleId;
 }

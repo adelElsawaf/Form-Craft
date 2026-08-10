@@ -43,11 +43,9 @@ public class JwtService {
 
             String actualUsername = claims.getSubject();
             String actualType = (String) claims.get("type");
-            Date expiration = claims.getExpiration();
 
             return actualUsername.equals(expectedUsername)
-                    && expectedType.name().equals(actualType)
-                    && expiration.after(new Date());
+                    && expectedType.name().equals(actualType);
         } catch (Exception ex) {
             return false;
         }

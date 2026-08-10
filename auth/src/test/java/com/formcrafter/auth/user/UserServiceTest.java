@@ -8,14 +8,12 @@ import com.formcrafter.auth.user.exceptions.UserNotFoundException;
 import com.formcrafter.auth.user_identity.UserIdentityEntity;
 import com.formcrafter.auth.user_identity.UserIdentityService;
 import com.formcrafter.auth.user_identity.enums.AuthProvider;
-import com.formcrafter.auth.user_identity.exceptions.GoogleAccountAlreadyLinkedException;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Optional;
 
@@ -187,9 +185,10 @@ class UserServiceTest {
             UserEntity saved = sampleUser();
             UserDTO expected = sampleUserDto();
 
+            when(userRepository.existsByEmailIgnoreCase(EMAIL)).thenReturn(false);
             when(userMapper.toEntity(request)).thenReturn(mapped);
             when(userIdentityService.buildIdentity(mapped, request.getIdentity())).thenReturn(identity);
-            when(userRepository.saveAndFlush(mapped)).thenReturn(saved);
+            when(userRepository.save(mapped)).thenReturn(saved);
             when(userMapper.toDto(saved)).thenReturn(expected);
 
             UserDTO actual = userService.createUser(request);
@@ -198,9 +197,10 @@ class UserServiceTest {
                     .usingRecursiveComparison()
                     .isEqualTo(expected);
             assertThat(mapped.getIdentities()).containsExactly(identity);
+            verify(userRepository).existsByEmailIgnoreCase(EMAIL);
             verify(userMapper).toEntity(request);
             verify(userIdentityService).buildIdentity(mapped, request.getIdentity());
-            verify(userRepository).saveAndFlush(mapped);
+            verify(userRepository).save(mapped);
             verify(userMapper).toDto(saved);
         }
 
@@ -211,8 +211,9 @@ class UserServiceTest {
             UserEntity saved = sampleUser();
             UserDTO expected = sampleUserDto();
 
+            when(userRepository.existsByEmailIgnoreCase(EMAIL)).thenReturn(false);
             when(userMapper.toEntity(request)).thenReturn(mapped);
-            when(userRepository.saveAndFlush(mapped)).thenReturn(saved);
+            when(userRepository.save(mapped)).thenReturn(saved);
             when(userMapper.toDto(saved)).thenReturn(expected);
 
             UserDTO actual = userService.createUser(request);
@@ -221,101 +222,48 @@ class UserServiceTest {
                     .usingRecursiveComparison()
                     .isEqualTo(expected);
             assertThat(mapped.getIdentities()).isEmpty();
+            verify(userRepository).existsByEmailIgnoreCase(EMAIL);
             verify(userMapper).toEntity(request);
             verify(userIdentityService, never()).buildIdentity(any(), any());
-            verify(userRepository).saveAndFlush(mapped);
+            verify(userRepository).save(mapped);
             verify(userMapper).toDto(saved);
         }
 
         @Test
-        void whenEmailUniqueConstraintViolated_throwsUserAlreadyExistsException() {
+        void whenEmailAlreadyExists_throwsUserAlreadyExistsException() {
             CreateUserRequest request = sampleCreateUserRequestWithoutIdentity();
-            UserEntity mapped = sampleUser();
-            DataIntegrityViolationException violation = dataIntegrityViolation(
-                    "Key (email)=(" + EMAIL + ") already exists."
-            );
 
-            when(userMapper.toEntity(request)).thenReturn(mapped);
-            when(userRepository.saveAndFlush(mapped)).thenThrow(violation);
+            when(userRepository.existsByEmailIgnoreCase(EMAIL)).thenReturn(true);
 
             assertThatThrownBy(() -> userService.createUser(request))
                     .isInstanceOf(UserAlreadyExistsException.class);
 
-            verifyNoInteractions(userIdentityService);
-            verify(userMapper, never()).toDto(any());
+            verify(userRepository).existsByEmailIgnoreCase(EMAIL);
+            verify(userRepository, never()).save(any());
+            verifyNoInteractions(userMapper);
+            verify(userIdentityService, never()).buildIdentity(any(), any());
         }
 
         @Test
-        void whenGoogleIdentityUniqueConstraintViolated_throwsGoogleAccountAlreadyLinkedException() {
-            CreateUserRequest request = sampleCreateUserRequestWithGoogleIdentity();
-            UserEntity mapped = sampleUser();
-            DataIntegrityViolationException violation = dataIntegrityViolation(
-                    "Key (provider, provider_user_id)=(GOOGLE, " + GOOGLE_ID + ") already exists."
-            );
-
-            when(userMapper.toEntity(request)).thenReturn(mapped);
-            when(userIdentityService.buildIdentity(mapped, request.getIdentity()))
-                    .thenReturn(sampleGoogleIdentity(mapped));
-            when(userRepository.saveAndFlush(mapped)).thenThrow(violation);
-
-            assertThatThrownBy(() -> userService.createUser(request))
-                    .isInstanceOf(GoogleAccountAlreadyLinkedException.class);
-
-            verify(userMapper, never()).toDto(any());
-        }
-
-        @Test
-        void whenEmailPasswordIdentityUniqueConstraintViolated_rethrowsDataIntegrityViolationException() {
+        void whenEmailPasswordIdentity_savesUser() {
             CreateUserRequest request = sampleCreateUserRequestWithEmailPasswordIdentity();
             UserEntity mapped = sampleUser();
-            DataIntegrityViolationException violation = dataIntegrityViolation(
-                    "Key (provider, provider_user_id)=(EMAIL_AND_PASSWORD, " + EMAIL + ") already exists."
-            );
+            UserIdentityEntity identity = sampleEmailPasswordIdentity(mapped);
+            UserEntity saved = sampleUser();
+            UserDTO expected = sampleUserDto();
 
+            when(userRepository.existsByEmailIgnoreCase(EMAIL)).thenReturn(false);
             when(userMapper.toEntity(request)).thenReturn(mapped);
-            when(userIdentityService.buildIdentity(mapped, request.getIdentity()))
-                    .thenReturn(sampleEmailPasswordIdentity(mapped));
-            when(userRepository.saveAndFlush(mapped)).thenThrow(violation);
+            when(userIdentityService.buildIdentity(mapped, request.getIdentity())).thenReturn(identity);
+            when(userRepository.save(mapped)).thenReturn(saved);
+            when(userMapper.toDto(saved)).thenReturn(expected);
 
-            assertThatThrownBy(() -> userService.createUser(request))
-                    .isSameAs(violation);
+            UserDTO actual = userService.createUser(request);
 
-            verify(userMapper, never()).toDto(any());
-        }
-
-        @Test
-        void whenProviderUserIdConstraintViolatedWithoutIdentity_rethrowsDataIntegrityViolationException() {
-            CreateUserRequest request = sampleCreateUserRequestWithoutIdentity();
-            UserEntity mapped = sampleUser();
-            DataIntegrityViolationException violation = dataIntegrityViolation(
-                    "Key (provider, provider_user_id)=(GOOGLE, " + GOOGLE_ID + ") already exists."
-            );
-
-            when(userMapper.toEntity(request)).thenReturn(mapped);
-            when(userRepository.saveAndFlush(mapped)).thenThrow(violation);
-
-            assertThatThrownBy(() -> userService.createUser(request))
-                    .isSameAs(violation);
-
-            verifyNoInteractions(userIdentityService);
-            verify(userMapper, never()).toDto(any());
-        }
-
-        @Test
-        void whenUnknownUniqueConstraintViolated_rethrowsDataIntegrityViolationException() {
-            CreateUserRequest request = sampleCreateUserRequestWithGoogleIdentity();
-            UserEntity mapped = sampleUser();
-            DataIntegrityViolationException violation = dataIntegrityViolation("some unrelated constraint failed");
-
-            when(userMapper.toEntity(request)).thenReturn(mapped);
-            when(userIdentityService.buildIdentity(mapped, request.getIdentity()))
-                    .thenReturn(sampleGoogleIdentity(mapped));
-            when(userRepository.saveAndFlush(mapped)).thenThrow(violation);
-
-            assertThatThrownBy(() -> userService.createUser(request))
-                    .isSameAs(violation);
-
-            verify(userMapper, never()).toDto(any());
+            assertThat(actual)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
+            verify(userRepository).save(mapped);
         }
     }
 
@@ -385,9 +333,5 @@ class UserServiceTest {
                 .email(EMAIL)
                 .identity(null)
                 .build();
-    }
-
-    private static DataIntegrityViolationException dataIntegrityViolation(String causeMessage) {
-        return new DataIntegrityViolationException("duplicate", new RuntimeException(causeMessage));
     }
 }
