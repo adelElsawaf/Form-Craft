@@ -60,7 +60,7 @@ import java.lang.annotation.Target;
         ),
         @ApiResponse(
                 responseCode = "409",
-                description = "Email already registered with a different identity, or Google account already linked to another user.",
+                description = "Email already registered with a different identity.",
                 content = @Content(
                         mediaType = MediaType.APPLICATION_JSON_VALUE,
                         schema = @Schema(implementation = ExceptionResponse.class)

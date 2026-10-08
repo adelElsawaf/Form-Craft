@@ -23,15 +23,15 @@ import java.lang.annotation.Target;
 @Operation(
         summary = "Register a new user",
         description = """
-                Creates a new FormCraft account using email credentials and/or a Google identity.
+                Creates a new FormCraft account using email and password.
 
                 On success, the response body contains the created user profile. Authentication \
                 tokens are **not** returned in the JSON body; instead, httpOnly cookies are set:
                 - `accessToken` — short-lived JWT for authenticated API calls
                 - `refreshToken` — longer-lived JWT used to obtain new access tokens
 
-                Provide either a password (min 8 characters) or a `googleId` (or both). \
-                When a password is provided, the user is also authenticated immediately after registration.
+                Password is required (min 8 characters). The user is authenticated immediately after registration.
+                For Google sign-in / sign-up, use `POST /api/auth/google` instead.
                 """
 )
 @ApiResponses({
@@ -51,7 +51,7 @@ import java.lang.annotation.Target;
         ),
         @ApiResponse(
                 responseCode = "400",
-                description = "Validation failed (missing/invalid fields, or neither password nor googleId provided).",
+                description = "Validation failed (missing/invalid fields).",
                 content = @Content(
                         mediaType = MediaType.APPLICATION_JSON_VALUE,
                         schema = @Schema(implementation = ExceptionResponse.class)
@@ -59,7 +59,7 @@ import java.lang.annotation.Target;
         ),
         @ApiResponse(
                 responseCode = "409",
-                description = "Email already registered, or Google account already linked to another user.",
+                description = "Email already registered.",
                 content = @Content(
                         mediaType = MediaType.APPLICATION_JSON_VALUE,
                         schema = @Schema(implementation = ExceptionResponse.class)

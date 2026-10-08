@@ -14,26 +14,15 @@ import org.springframework.util.StringUtils;
 public class AuthMapper {
 
     public CreateUserRequest toCreateUserRequest(RegisterRequest request) {
-        CreateIdentityRequest identity = null;
-
-        if (StringUtils.hasText(request.getPassword())) {
-            identity = CreateIdentityRequest.builder()
-                    .provider(AuthProvider.EMAIL_AND_PASSWORD)
-                    .providerUserId(request.getEmail())
-                    .secret(request.getPassword())
-                    .build();
-        } else if (StringUtils.hasText(request.getGoogleId())) {
-            identity = CreateIdentityRequest.builder()
-                    .provider(AuthProvider.GOOGLE)
-                    .providerUserId(request.getGoogleId())
-                    .build();
-        }
-
         return CreateUserRequest.builder()
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .email(request.getEmail())
-                .identity(identity)
+                .identity(CreateIdentityRequest.builder()
+                        .provider(AuthProvider.EMAIL_AND_PASSWORD)
+                        .providerUserId(request.getEmail())
+                        .secret(request.getPassword())
+                        .build())
                 .build();
     }
 
