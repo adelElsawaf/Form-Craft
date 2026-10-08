@@ -9,17 +9,12 @@ import com.formcrafter.auth.auth.dtos.requests.RegisterRequest;
 import com.formcrafter.auth.auth.dtos.responses.AuthTokensDto;
 import com.formcrafter.auth.auth.dtos.responses.AuthUserDTO;
 import com.formcrafter.auth.auth.dtos.responses.LoginResponse;
-import com.formcrafter.auth.auth.exceptions.GoogleAccountAlreadyLinkedException;
 import com.formcrafter.auth.auth.exceptions.InvalidCredentialsException;
-import com.formcrafter.auth.auth.exceptions.UserAlreadyExistsException;
 import com.formcrafter.auth.auth.mappers.AuthMapper;
 import com.formcrafter.auth.exception.AppException;
 import com.formcrafter.auth.jwt.JwtService;
 import com.formcrafter.auth.user.UserService;
-import com.formcrafter.auth.user.dtos.requests.CreateUserRequest;
 import com.formcrafter.auth.user.dtos.responses.UserDTO;
-import com.formcrafter.auth.user_identity.UserIdentityService;
-import com.formcrafter.auth.user_identity.enums.AuthProvider;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -38,7 +33,6 @@ import java.security.GeneralSecurityException;
 @RequiredArgsConstructor
 public class AuthService {
     private final UserService userService;
-    private final UserIdentityService userIdentityService;
     private final AuthenticationManager authenticationManager;
     private final AuthMapper authMapper;
     private final JwtService jwtService;
@@ -47,22 +41,7 @@ public class AuthService {
 
     @Transactional
     public LoginResponse register(RegisterRequest request) {
-        if (userService.existsByEmail(request.getEmail())) {
-            throw new UserAlreadyExistsException();
-        }
-
-        if (StringUtils.hasText(request.getGoogleId())
-                && userIdentityService.existsByProviderAndProviderUserId(AuthProvider.GOOGLE, request.getGoogleId())) {
-            throw new GoogleAccountAlreadyLinkedException();
-        }
-
-        CreateUserRequest createUserRequest = authMapper.toCreateUserRequest(request);
-        UserDTO createdUser = userService.createUser(createUserRequest);
-
-        if (!StringUtils.hasText(request.getPassword())) {
-            return buildLoginResponse(authMapper.toAuthUserDTO(createdUser));
-        }
-
+        userService.createUser(authMapper.toCreateUserRequest(request));
         return login(new LoginRequest(request.getEmail(), request.getPassword()));
     }
 
@@ -88,14 +67,6 @@ public class AuthService {
     }
 
     private LoginResponse registerGoogleUser(GoogleUserDTO googleUser) {
-        if (userService.existsByEmail(googleUser.email())) {
-            throw new UserAlreadyExistsException();
-        }
-
-        if (userIdentityService.existsByProviderAndProviderUserId(AuthProvider.GOOGLE, googleUser.googleId())) {
-            throw new GoogleAccountAlreadyLinkedException();
-        }
-
         UserDTO createdUser = userService.createUser(authMapper.toCreateUserRequest(googleUser));
         return buildLoginResponse(authMapper.toAuthUserDTO(createdUser));
     }
@@ -134,4 +105,5 @@ public class AuthService {
                 .tokens(tokens)
                 .build();
     }
+
 }

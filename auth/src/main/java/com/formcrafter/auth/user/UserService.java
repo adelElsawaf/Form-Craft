@@ -2,6 +2,7 @@ package com.formcrafter.auth.user;
 
 import com.formcrafter.auth.user.dtos.requests.CreateUserRequest;
 import com.formcrafter.auth.user.dtos.responses.UserDTO;
+import com.formcrafter.auth.user.exceptions.UserAlreadyExistsException;
 import com.formcrafter.auth.user.exceptions.UserNotFoundException;
 import com.formcrafter.auth.user_identity.UserIdentityService;
 import com.formcrafter.auth.user_identity.enums.AuthProvider;
@@ -24,14 +25,17 @@ public class UserService {
 
     @Transactional
     public UserDTO createUser(CreateUserRequest request) {
+        if (existsByEmail(request.getEmail())) {
+            throw new UserAlreadyExistsException();
+        }
+
         UserEntity user = userMapper.toEntity(request);
 
         if (request.getIdentity() != null) {
             user.getIdentities().add(userIdentityService.buildIdentity(user, request.getIdentity()));
         }
 
-        UserEntity savedUser = userRepository.save(user);
-        return userMapper.toDto(savedUser);
+        return userMapper.toDto(userRepository.save(user));
     }
 
     @Transactional(readOnly = true)

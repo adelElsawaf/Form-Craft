@@ -11,7 +11,6 @@ export type RegisterRequest = {
   lastName: string
   email: string
   password: string
-  googleId?: string
 }
 
 export type LoginRequest = {

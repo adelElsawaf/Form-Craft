@@ -21,15 +21,7 @@ public class GoogleTokenVerifierService {
     private final GoogleAuthProperties properties;
 
     public GoogleUserDTO verify(String idToken) throws GeneralSecurityException, IOException {
-        GoogleIdTokenVerifier verifier =
-                new GoogleIdTokenVerifier.Builder(
-                        new NetHttpTransport(),
-                        GsonFactory.getDefaultInstance()
-                )
-                        .setAudience(List.of(properties.getClientId()))
-                        .build();
-
-        GoogleIdToken token = verifier.verify(idToken);
+        GoogleIdToken token = buildVerifier().verify(idToken);
         if (token == null) {
             throw new InvalidCredentialsException();
         }
@@ -42,5 +34,14 @@ public class GoogleTokenVerifierService {
                 (String) payload.get("given_name"),
                 (String) payload.get("family_name")
         );
+    }
+
+    GoogleIdTokenVerifier buildVerifier() {
+        return new GoogleIdTokenVerifier.Builder(
+                new NetHttpTransport(),
+                GsonFactory.getDefaultInstance()
+        )
+                .setAudience(List.of(properties.getClientId()))
+                .build();
     }
 }

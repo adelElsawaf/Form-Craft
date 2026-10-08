@@ -12,7 +12,6 @@ const registerFieldsSchema = z.object({
     .string()
     .min(1, 'Password is required')
     .min(8, 'Password must be at least 8 characters'),
-  googleId: z.string().optional(),
 })
 
 export const registerSchema = registerFieldsSchema
